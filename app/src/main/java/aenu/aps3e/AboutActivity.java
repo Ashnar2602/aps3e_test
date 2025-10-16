@@ -2,13 +2,16 @@
 package aenu.aps3e;
 
 import android.app.Activity;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.WebView;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class AboutActivity extends AppCompatActivity {
@@ -260,10 +263,23 @@ public class AboutActivity extends AppCompatActivity {
                 text.setText(getString(R.string.gratitude_content)+gratitude_list()+getString(R.string.gratitude_content2));
             }
         });
-        findViewById(R.id.device_info).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.open_source_licenses).setOnClickListener(new View.OnClickListener() {
+            void show_licenses_dialog(){
+                AlertDialog.Builder ab=new AlertDialog.Builder(AboutActivity.this);
+                ab.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface p1, int p2) {
+                        p1.cancel();
+                    }
+                });
+                WebView wv=new WebView(AboutActivity.this);
+                wv.loadUrl("file:///android_asset/licenses.html");
+                ab.setView(wv);
+                ab.create().show();
+            }
             @Override
             public void onClick(View v) {
-                text.setText(Emulator.get.simple_device_info());
+                show_licenses_dialog();
             }
         });
         findViewById(R.id.update_log).setOnClickListener(new View.OnClickListener() {
