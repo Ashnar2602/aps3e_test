@@ -95,6 +95,20 @@ public class Utils {
         }
     }
 
+    static String read_file_as_str(File f) {
+        try {
+            FileInputStream in=new FileInputStream(f);
+            int size=in.available();
+            byte[] buffer=new byte[size];
+            in.read(buffer);
+            in.close();
+            return new String(buffer);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
     public static void enable_fullscreen(Window w){
         WindowCompat.setDecorFitsSystemWindows(w,false);
         WindowInsetsControllerCompat wic=WindowCompat.getInsetsController(w,w.getDecorView());

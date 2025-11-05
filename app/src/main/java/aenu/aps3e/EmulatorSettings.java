@@ -37,11 +37,14 @@ import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
 
+import org.json.JSONObject;
+
 import aenu.preference.CheckBoxPreference;
 import aenu.preference.ListPreference;
 import aenu.preference.SeekBarPreference;
 
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -84,7 +87,10 @@ public class EmulatorSettings extends AppCompatActivity {
     static final String Core$Thread_Affinity_Mask="Core|Thread Affinity Mask";
     //"Core|Thread Scheduler Mode"
     static final String Core$Thread_Scheduler_Mode="Core|Thread Scheduler Mode";
-
+    @FunctionalInterface
+    public static interface InstallCallback {
+        void onInstallComplete(String path);
+    }
     @SuppressLint("ValidFragment")
     public static class SettingsFragment extends PreferenceFragmentCompat implements
             Preference.OnPreferenceClickListener,Preference.OnPreferenceChangeListener{
@@ -777,7 +783,26 @@ public class EmulatorSettings extends AppCompatActivity {
 
             String  items[]=new String[files.length+1];
             for(int i=0;i<files.length;i++){
-                items[i]=files[i].getName();
+                if(files[i].isFile())
+                    items[i]=files[i].getName();
+                else{
+                    File[] sub_files=files[i].listFiles();
+                    if(sub_files.length==1)
+                        items[i]=files[i].getName()+"/"+sub_files[0].getName();
+                    else{
+                        File json_f=new File(files[i], "meta.json");
+                        if(json_f.exists()){
+                            try {
+                                JSONObject json = new JSONObject(Utils.read_file_as_str(json_f));
+                                items[i]=files[i].getName()+"/"+json.getString("libraryName");
+                            } catch (Exception e) {
+                                items[i]="";
+                            }
+                        }
+                        else
+                            items[i]="";
+                    }
+                }
             }
             items[files.length]=getString(R.string.emulator_settings_video_vulkan_custom_driver_library_path_dialog_add_hint);
             create_list_dialog(getString(R.string.emulator_settings_video_vulkan_custom_driver_library_path_dialog_title), items, new DialogInterface.OnClickListener() {
@@ -787,7 +812,9 @@ public class EmulatorSettings extends AppCompatActivity {
                     if(which==files.length){
                         request_select_custom_driver_file();
                     }else{
-                        setup_costom_driver_library_path(files[which].getAbsolutePath());
+                        //setup_costom_driver_library_path(files[which].getAbsolutePath());
+                        File f=new File(files[which].getParentFile(),items[which]);
+                        setup_costom_driver_library_path(f.getAbsolutePath());
                     }
                 }
             });
@@ -1003,48 +1030,84 @@ public class EmulatorSettings extends AppCompatActivity {
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content,fragment).commit();
     }
 
-    boolean install_custom_driver_from_zip(Uri uri){
+    static boolean install_custom_driver_from_zip(Context ctx, Uri uri, InstallCallback cb) {
         try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
+            ParcelFileDescriptor pfd = ctx.getContentResolver().openFileDescriptor(uri, "r");
             FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
             ZipInputStream zis = new ZipInputStream(fis);
+
+            Map<String, byte[]> entries = new HashMap<>();
             for (ZipEntry ze = zis.getNextEntry(); ze != null; ze = zis.getNextEntry()) {
-                if (ze.getName().endsWith(".so")) {
-                    //String lib_path=new File(Application.get_custom_driver_dir() , ze.getName()).getAbsolutePath();
-                    String lib_name=Utils.getFileNameFromUri(uri);
-                    lib_name=lib_name.substring(0,lib_name.lastIndexOf('.'));
-                    lib_name=lib_name+".so";
-                    String lib_path=new File(Application.get_custom_driver_dir() , lib_name).getAbsolutePath();
-                    FileOutputStream lib_os = new FileOutputStream(lib_path);
-                    try {
-                        byte[] buffer = new byte[16384];
-                        int n;
-                        while ((n = zis.read(buffer)) != -1)
-                            lib_os.write(buffer, 0, n);
-                        lib_os.close();
-                        fragment.setup_costom_driver_library_path(lib_path);
-                        zis.closeEntry();
-                        break;
-                    } catch (Exception e) {
-                        Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
-                    }
-                }
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[16384];
+                int n;
+                while ((n = zis.read(buffer)) != -1)
+                    baos.write(buffer, 0, n);
+                entries.put(ze.getName(), baos.toByteArray());
                 zis.closeEntry();
             }
+
             zis.close();
             fis.close();
             pfd.close();
+
+            String libs_dir_name = Utils.getFileNameFromUri(uri);
+            libs_dir_name = libs_dir_name.substring(0, libs_dir_name.lastIndexOf('.'));
+            File libs_dir = new File(Application.get_custom_driver_dir(), libs_dir_name);
+
+            String driver_lib_path = null;
+            if (entries.containsKey("meta.json")) {
+                JSONObject meta = new JSONObject(new String(entries.get("meta.json")));
+                if (!meta.has("libraryName")) {
+                    Toast.makeText(ctx, "ERR: invalid meta.json", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                String driver_lib_name = meta.getString("libraryName");
+                if(!entries.containsKey( driver_lib_name)){
+                    Toast.makeText(ctx, "ERR: not found "+driver_lib_name, Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+
+                driver_lib_path = new File(libs_dir, driver_lib_name).getAbsolutePath();
+            }
+
+            if(driver_lib_path==null){
+                int lib_count=0;
+                String lib_name = null;
+                for(String entry_name : entries.keySet()){
+                    if (entry_name.endsWith(".so")) {
+                        lib_name = entry_name;
+                        lib_count++;
+                    }
+                }
+                if(lib_count!=1){
+                    Toast.makeText(ctx, "ERR: invalid file", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                driver_lib_path = new File(libs_dir, lib_name).getAbsolutePath();
+            }
+
+            if (!libs_dir.exists()) libs_dir.mkdirs();
+            for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                if (entry.getKey().endsWith(".so")||entry.getKey().equals("meta.json")) {
+                    String lib_path = new File(libs_dir, entry.getKey()).getAbsolutePath();
+                    FileOutputStream lib_os = new FileOutputStream(lib_path);
+                    lib_os.write(entry.getValue());
+                    lib_os.close();
+                }
+            }
+            cb.onInstallComplete(driver_lib_path);
             return true;
-        }
-        catch (Exception e){
-            Toast.makeText(this,e.toString(),Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(ctx, e.toString(), Toast.LENGTH_SHORT).show();
             return false;
         }
     }
 
-    boolean install_custom_driver_from_lib(Uri uri){
+
+    static boolean install_custom_driver_from_lib(Context ctx, Uri uri, InstallCallback cb){
         try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
+            ParcelFileDescriptor pfd = ctx.getContentResolver().openFileDescriptor(uri, "r");
             FileInputStream lib_is = new FileInputStream(pfd.getFileDescriptor());
             String lib_path=new File(Application.get_custom_driver_dir() , Utils.getFileNameFromUri(uri)).getAbsolutePath();
             FileOutputStream lib_os = new FileOutputStream(lib_path);
@@ -1054,19 +1117,19 @@ public class EmulatorSettings extends AppCompatActivity {
             while ((n = lib_is.read(buffer)) != -1)
                 lib_os.write(buffer, 0, n);
             lib_os.close();
-            fragment.setup_costom_driver_library_path(lib_path);
             lib_is.close();
             pfd.close();
+            cb.onInstallComplete(lib_path);
             return true;
         } catch (Exception e) {
-            Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, e.toString(), Toast.LENGTH_SHORT).show();
             return false;
         }
     }
 
-    boolean install_custom_font(Uri uri){
+    static boolean install_custom_font(Context ctx, Uri uri, InstallCallback cb){
         try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
+            ParcelFileDescriptor pfd = ctx.getContentResolver().openFileDescriptor(uri, "r");
             FileInputStream font_is = new FileInputStream(pfd.getFileDescriptor());
             String font_path=new File(Application.get_custom_font_dir(), Utils.getFileNameFromUri(uri)).getAbsolutePath();
             FileOutputStream font_os = new FileOutputStream(font_path);
@@ -1076,12 +1139,12 @@ public class EmulatorSettings extends AppCompatActivity {
             while ((n = font_is.read(buffer)) != -1)
                 font_os.write(buffer, 0, n);
             font_os.close();
-            fragment.setup_costom_font_path(font_path);
             font_is.close();
             pfd.close();
+            cb.onInstallComplete(font_path);
             return true;
         } catch (Exception e) {
-            Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, e.toString(), Toast.LENGTH_SHORT).show();
             return false;
         }
     }
@@ -1098,13 +1161,13 @@ public class EmulatorSettings extends AppCompatActivity {
         switch (requestCode){
             case REQUEST_CODE_SELECT_CUSTOM_DRIVER:
                 if(file_name.endsWith(".zip"))
-                    install_custom_driver_from_zip(uri);
+                    install_custom_driver_from_zip(this,uri,(path)->{ fragment.setup_costom_driver_library_path(path);});
                 else if(file_name.endsWith(".so"))
-                    install_custom_driver_from_lib(uri);
+                    install_custom_driver_from_lib(this,uri,(path)->{ fragment.setup_costom_driver_library_path(path);});
                 break;
                 case REQUEST_CODE_SELECT_CUSTOM_FONT:
                     if(file_name.endsWith(".ttf")||file_name.endsWith(".ttc")||file_name.endsWith(".otf"))
-                        install_custom_font(uri);
+                        install_custom_font(this,uri,(path)->{ fragment.setup_costom_font_path(path);});
                     break;
         }
     }

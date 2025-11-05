@@ -30,6 +30,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -179,15 +182,24 @@ public class QuickStartActivity extends AppCompatActivity {
                 return;
             case EmulatorSettings.REQUEST_CODE_SELECT_CUSTOM_FONT:
                 if (file_name.endsWith(".ttf") || file_name.endsWith(".ttc") || file_name.endsWith(".otf")) {
-                    install_custom_font(uri);
+                    EmulatorSettings.install_custom_font(this,uri,(font_path)->{
+                        config.save_config_entry(EmulatorSettings.Miscellaneous$Custom_Font_File_Path,font_path);
+                        select_layout(page);
+                    });
                 }
                 return;
 
             case EmulatorSettings.REQUEST_CODE_SELECT_CUSTOM_DRIVER:
                 if (file_name.endsWith(".zip")) {
-                    install_custom_driver_from_zip(uri);
+                    EmulatorSettings.install_custom_driver_from_zip(this,uri,(path)->{
+                        config.save_config_entry(EmulatorSettings.Video$Vulkan$Custom_Driver_Library_Path,path);
+                        select_layout(page);
+                    });
                 } else if (file_name.endsWith(".so")) {
-                    install_custom_driver_from_lib(uri);
+                    EmulatorSettings.install_custom_driver_from_lib(this,uri,(path)->{
+                        config.save_config_entry(EmulatorSettings.Video$Vulkan$Custom_Driver_Library_Path,path);
+                        select_layout(page);
+                    });
                 }
                 return;
         }
@@ -409,8 +421,27 @@ public class QuickStartActivity extends AppCompatActivity {
                 }
                 else{
                     for(File f:files){
-                        gpu_driver_list.add(f.getName());
+                        if(f.isFile())
+                            gpu_driver_list.add(f.getName());
+                        else{
+                            File[] sub_files=f.listFiles();
+                            if(sub_files.length==1)
+                                gpu_driver_list.add(f.getName()+"/"+sub_files[0].getName());
+                            else{
+                                File json_f=new File(f, "meta.json");
+                                if(json_f.exists()){
+                                    try {
+                                        JSONObject json = new JSONObject(Utils.read_file_as_str(json_f));
+                                        gpu_driver_list.add(f.getName()+"/"+json.getString("libraryName"));
+                                    } catch (Exception e) {
+                                    }
+                                }
+                            }
+                        }
                     }
+                    /*for(File f:files){
+                        gpu_driver_list.add(f.getName());
+                    }*/
                     gpu_driver_list.add(getString(R.string.emulator_settings_video_vulkan_custom_driver_library_path_dialog_add_hint));
                 }
             }
@@ -493,93 +524,5 @@ public class QuickStartActivity extends AppCompatActivity {
         }
         startActivity(new Intent(this,MainActivity.class));
         finish();
-    }
-    boolean install_custom_driver_from_zip(Uri uri){
-        try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
-            FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
-            ZipInputStream zis = new ZipInputStream(fis);
-            for (ZipEntry ze = zis.getNextEntry(); ze != null; ze = zis.getNextEntry()) {
-                if (ze.getName().endsWith(".so")) {
-                    //String lib_path=new File(Application.get_custom_driver_dir() , ze.getName()).getAbsolutePath();
-                    String lib_name=Utils.getFileNameFromUri(uri);
-                    lib_name=lib_name.substring(0,lib_name.lastIndexOf('.'));
-                    lib_name=lib_name+".so";
-                    String lib_path=new File(Application.get_custom_driver_dir() , lib_name).getAbsolutePath();
-                    FileOutputStream lib_os = new FileOutputStream(lib_path);
-                    try {
-                        byte[] buffer = new byte[16384];
-                        int n;
-                        while ((n = zis.read(buffer)) != -1)
-                            lib_os.write(buffer, 0, n);
-                        lib_os.close();
-                        //fragment.setup_costom_driver_library_path(lib_path);
-                        config.save_config_entry(EmulatorSettings.Video$Vulkan$Custom_Driver_Library_Path,lib_path);
-                        select_layout(page);
-                        zis.closeEntry();
-                        break;
-                    } catch (Exception e) {
-                        Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
-                    }
-                }
-                zis.closeEntry();
-            }
-            zis.close();
-            fis.close();
-            pfd.close();
-            return true;
-        }
-        catch (Exception e){
-            Toast.makeText(this,e.toString(),Toast.LENGTH_SHORT).show();
-            return false;
-        }
-    }
-
-    boolean install_custom_driver_from_lib(Uri uri){
-        try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
-            FileInputStream lib_is = new FileInputStream(pfd.getFileDescriptor());
-            String lib_path=new File(Application.get_custom_driver_dir() , Utils.getFileNameFromUri(uri)).getAbsolutePath();
-            FileOutputStream lib_os = new FileOutputStream(lib_path);
-
-            byte[] buffer = new byte[16384];
-            int n;
-            while ((n = lib_is.read(buffer)) != -1)
-                lib_os.write(buffer, 0, n);
-            lib_os.close();
-            //fragment.setup_costom_driver_library_path(lib_path);
-            config.save_config_entry(EmulatorSettings.Video$Vulkan$Custom_Driver_Library_Path,lib_path);
-            select_layout(page);
-            lib_is.close();
-            pfd.close();
-            return true;
-        } catch (Exception e) {
-            Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
-            return false;
-        }
-    }
-
-    boolean install_custom_font(Uri uri){
-        try {
-            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
-            FileInputStream font_is = new FileInputStream(pfd.getFileDescriptor());
-            String font_path=new File(Application.get_custom_font_dir(), Utils.getFileNameFromUri(uri)).getAbsolutePath();
-            FileOutputStream font_os = new FileOutputStream(font_path);
-
-            byte[] buffer = new byte[16384];
-            int n;
-            while ((n = font_is.read(buffer)) != -1)
-                font_os.write(buffer, 0, n);
-            font_os.close();
-            //fragment.setup_costom_font_path(font_path);
-            config.save_config_entry(EmulatorSettings.Miscellaneous$Custom_Font_File_Path,font_path);
-            select_layout(page);
-            font_is.close();
-            pfd.close();
-            return true;
-        } catch (Exception e) {
-            Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
-            return false;
-        }
     }
 }
