@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="show_trophy_info">إظهار معلومات الجائزة</string>
+<string name="create_ppu_cache">إنشاء ذاكرة التخزين المؤقت لـ PPU</string>
+<string name="delete_ppu_cache">حذف ذاكرة التخزين المؤقت لـ PPU</string>
+<string name="delete_spu_cache">حذف ذاكرة التخزين المؤقت لـ SPU</string>
+<string name="no_found_trophy_info">لم يتم العثور على معلومات الجائزة</string>
 
 <string name="open_source_licenses">تراخيص المصدر المفتوح</string>
 <string name="buy_premium">شراء aPS3e Premium</string>

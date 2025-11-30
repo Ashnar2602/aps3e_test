@@ -2,12 +2,15 @@
 #include <android/log.h>
 #include <jni.h>
 #include <filesystem>
+#include <fstream>
 #define VK_USE_PLATFORM_ANDROID_KHR
 #include <vulkan/vulkan.h>
 #include "emulator_aps3e.h"
 #include "cpuinfo.h"
 #include "Emu/system_config.h"
+#include "Emu/Cell/Modules/sceNpTrophy.h"
 #include "Loader/PSF.h"
+#include "Loader/TROPUSR.h"
 
 
 #define LOG_TAG "aps3e_native"
@@ -88,7 +91,7 @@ static jobject j_meta_info_from_dir(JNIEnv* env,jobject self,jstring jdir_path){
     env->ReleaseStringUTFChars(jdir_path, _dir_path);
 
     psf::registry psf=psf::load_object(fetch_psf_path(dir_path));
-#if 1
+#if 0
     for(const auto& [key,value]:psf){
         switch (value.type()) {
             case psf::format::array:
@@ -213,6 +216,215 @@ static jstring j_simple_device_info(JNIEnv* env, jobject thiz)
     vv+="\n"+ae::get_gpu_info();
 
     return env->NewStringUTF(vv.c_str());
+}
+
+//public native boolean precompile_ppu_cache(String path);
+//public native boolean precompile_ppu_cache(int fd);
+static jboolean j_precompile_ppu_cache(JNIEnv* env,jobject self,jstring jpath){
+    const char* _path=env->GetStringUTFChars(jpath,NULL);
+    const std::string path=_path;
+    env->ReleaseStringUTFChars(jpath, _path);
+    return ae::precompile_ppu_cache(path,std::nullopt);
+}
+static jboolean j_precompile_ppu_cache_with_fd(JNIEnv* env,jobject self,jint fd){
+    return ae::precompile_ppu_cache(":PS3_GAME/USRDIR/EBOOT.BIN",fd);
+}
+
+//public native GameTrophyInfo trophy_info_from_dir(String path);
+namespace ae{
+    void init();
+}
+static jobject j_trophy_info_from_dir(JNIEnv* env,jobject self,jstring jreal_path,jstring jvfs_path){
+    const char* real_path=env->GetStringUTFChars(jreal_path,NULL);
+    const std::string trophy_real_dir = real_path;
+    env->ReleaseStringUTFChars(jreal_path, real_path);
+
+    const char* vfs_path=env->GetStringUTFChars(jvfs_path,NULL);
+    const std::string trophy_vfs_dir = vfs_path;
+    env->ReleaseStringUTFChars(jvfs_path, vfs_path);
+
+    ae::init();
+
+    std::unique_ptr<TROPUSRLoader> trophy_data = std::make_unique<TROPUSRLoader>();
+
+    const std::string tropusr_path = trophy_vfs_dir + "/TROPUSR.DAT";
+    const std::string tropconf_path = trophy_vfs_dir + "/TROPCONF.SFM";
+
+    const bool success = trophy_data->Load(tropusr_path, tropconf_path).success;
+
+    if(!success) {
+        LOGW("Failed to load TROPUSR.DAT");
+        return NULL;
+    }
+
+    const u32 trophy_count = trophy_data->GetTrophiesCount();
+    if(trophy_count==0){
+        return NULL;
+    }
+
+    trophy_xml_document trop_config;
+
+    auto read_file=[](const std::string& path)->std::string{
+        std::string r;
+        std::ifstream f(path);
+        if(f.is_open()){
+            std::string line;
+            while(std::getline(f,line)){
+                r+=line;
+            }
+        }
+        return r;
+    };
+
+    pugi::xml_parse_result res = trop_config.Read(read_file(trophy_real_dir+"/TROPCONF.SFM"));
+    if (!res){
+        LOGE("Failed to read trophy xml: %s", tropconf_path.c_str());
+        return NULL;
+    }
+
+    std::shared_ptr<rXmlNode> trophy_base = trop_config.GetRoot();
+    if (!trophy_base)
+    {
+        LOGE("Failed to read trophy xml (root is null): %s", tropconf_path.c_str());
+        return NULL;
+    }
+
+    jclass cls_GameTrophyInfo=env->FindClass("aenu/aps3e/Emulator$GameTrophyInfo");
+    jmethodID mid_GameTrophyInfo_ctor=env->GetMethodID(cls_GameTrophyInfo,"<init>","()V");
+    jfieldID fid_GameTrophyInfo_trophies=env->GetFieldID(cls_GameTrophyInfo,"trophies","[Laenu/aps3e/Emulator$GameTrophyInfo$TrophyInfo;");
+    jfieldID fid_GameTrophyInfo_game_name=env->GetFieldID(cls_GameTrophyInfo,"game_name","Ljava/lang/String;");
+
+    jobject result=env->NewObject(cls_GameTrophyInfo,mid_GameTrophyInfo_ctor);
+    jstring game_name;
+
+    for (std::shared_ptr<rXmlNode> n = trophy_base->GetChildren(); n; n = n->GetNext())
+    {
+        if (n->GetName() == "title-name")
+        {
+            std::string v;
+            game_name = env->NewStringUTF((v=n->GetNodeContent()).c_str());
+            env->SetObjectField(result,fid_GameTrophyInfo_game_name,game_name);
+            break;
+        }
+    }
+
+    jclass cls_TrophyInfo=env->FindClass("aenu/aps3e/Emulator$GameTrophyInfo$TrophyInfo");
+    jmethodID mid_TrophyInfo_ctor=env->GetMethodID(cls_TrophyInfo,"<init>","()V");
+
+    jfieldID fid_TrophyInfo_icon_path=env->GetFieldID(cls_TrophyInfo,"icon_path","Ljava/lang/String;");
+    jfieldID fid_TrophyInfo_name=env->GetFieldID(cls_TrophyInfo,"name","Ljava/lang/String;");
+    jfieldID fid_TrophyInfo_description=env->GetFieldID(cls_TrophyInfo,"description","Ljava/lang/String;");
+    jfieldID fid_TrophyInfo_type=env->GetFieldID(cls_TrophyInfo,"type","B");
+    jfieldID fid_TrophyInfo_timestamp=env->GetFieldID(cls_TrophyInfo,"timestamp","J");
+    jfieldID fid_TrophyInfo_unlocked=env->GetFieldID(cls_TrophyInfo,"unlocked","Z");
+    jobjectArray trophies=env->NewObjectArray(trophy_count,cls_TrophyInfo,NULL);
+    env->SetObjectField(result,fid_GameTrophyInfo_trophies,trophies);
+
+    for(u32 trophy_id=0;trophy_id<trophy_count;trophy_id++){
+        jobject trophy=env->NewObject(cls_TrophyInfo,mid_TrophyInfo_ctor);
+        std::string v;
+        env->SetObjectField(trophy,fid_TrophyInfo_icon_path,env->NewStringUTF((v=fmt::format("%s/TROP%03d.PNG", trophy_real_dir,trophy_id)).c_str()));
+        env->SetBooleanField(trophy,fid_TrophyInfo_unlocked,(jboolean)trophy_data->GetTrophyUnlockState(trophy_id));
+        env->SetLongField(trophy,fid_TrophyInfo_timestamp,trophy_data->GetTrophyTimestamp(trophy_id));
+
+        env->SetObjectArrayElement(trophies,trophy_id,trophy);
+    }
+
+    //int i = 0;
+    for (std::shared_ptr<rXmlNode> n = trophy_base ? trophy_base->GetChildren() : nullptr; n; n = n->GetNext())
+    {
+        // Only show trophies.
+        if (n->GetName() != "trophy")
+        {
+            continue;
+        }
+
+        // Get data (stolen graciously from sceNpTrophy.cpp)
+        SceNpTrophyDetails details{};
+
+        // Get trophy id
+        const s32 trophy_id = atoi(n->GetAttribute("id").c_str());
+        jobject trophy=env->GetObjectArrayElement(trophies,trophy_id);
+        details.trophyId = trophy_id;
+
+        // Get platinum link id (we assume there only exists one platinum trophy per game for now)
+        //const s32 platinum_link_id = atoi(n->GetAttribute("pid").c_str());
+        //const QString platinum_relevant = platinum_link_id < 0 ? tr("No") : tr("Yes");
+
+        // Get trophy type
+        /*QString trophy_type;
+
+        switch (n->GetAttribute("ttype")[0])
+        {
+            case 'B': details.trophyGrade = SCE_NP_TROPHY_GRADE_BRONZE;   trophy_type = tr("Bronze", "Trophy type");   break;
+            case 'S': details.trophyGrade = SCE_NP_TROPHY_GRADE_SILVER;   trophy_type = tr("Silver", "Trophy type");   break;
+            case 'G': details.trophyGrade = SCE_NP_TROPHY_GRADE_GOLD;     trophy_type = tr("Gold", "Trophy type");     break;
+            case 'P': details.trophyGrade = SCE_NP_TROPHY_GRADE_PLATINUM; trophy_type = tr("Platinum", "Trophy type"); break;
+            default: gui_log.warning("Unknown trophy grade %s", n->GetAttribute("ttype")); break;
+        }*/
+
+        // Get hidden state
+        const bool hidden = n->GetAttribute("hidden")[0] == 'y';
+        details.hidden = hidden;
+
+        // Get name and detail
+        for (std::shared_ptr<rXmlNode> n2 = n->GetChildren(); n2; n2 = n2->GetNext())
+        {
+            const std::string name = n2->GetName();
+            if (name == "name")
+            {
+                strcpy_trunc(details.name, n2->GetNodeContent());
+            }
+            else if (name == "detail")
+            {
+                strcpy_trunc(details.description, n2->GetNodeContent());
+            }
+        }
+
+        env->SetObjectField(trophy,fid_TrophyInfo_name,env->NewStringUTF(details.name));
+        env->SetObjectField(trophy,fid_TrophyInfo_description,env->NewStringUTF(details.description));
+
+        switch(details.trophyGrade){
+            case SCE_NP_TROPHY_GRADE_BRONZE:
+                env->SetByteField(trophy,fid_TrophyInfo_type,'B');
+                break;
+            case SCE_NP_TROPHY_GRADE_SILVER:
+                env->SetByteField(trophy,fid_TrophyInfo_type,'S');
+                break;
+            case SCE_NP_TROPHY_GRADE_GOLD:
+                env->SetByteField(trophy,fid_TrophyInfo_type,'G');
+                break;
+            case SCE_NP_TROPHY_GRADE_PLATINUM:
+                env->SetByteField(trophy,fid_TrophyInfo_type,'P');
+                break;
+        }
+
+        // Get timestamp
+        /*const u64 tick = data->trop_usr->GetTrophyTimestamp(trophy_id);
+        const QString datetime = tick ? gui::utils::format_datetime(TickToDateTime(tick), gui::persistent::last_played_date_with_time_of_day_format) : tr("Unknown");
+
+        const QString unlockstate = data->trop_usr->GetTrophyUnlockState(trophy_id) ? tr("Earned") : tr("Not Earned");
+
+        custom_table_widget_item* icon_item = new custom_table_widget_item();
+        icon_item->setData(Qt::UserRole, hidden, true);
+        icon_item->setData(Qt::DecorationRole, placeholder);
+
+        custom_table_widget_item* type_item = new custom_table_widget_item(trophy_type);
+        type_item->setData(Qt::UserRole, static_cast<uint>(details.trophyGrade), true);
+
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::icon), icon_item);
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::name), new custom_table_widget_item(QString::fromStdString(details.name)));
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::description), new custom_table_widget_item(QString::fromStdString(details.description)));
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::type), type_item);
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::is_unlocked), new custom_table_widget_item(unlockstate));
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::id), new custom_table_widget_item(QString::number(trophy_id), Qt::UserRole, trophy_id));
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::platinum_link), new custom_table_widget_item(platinum_relevant, Qt::UserRole, platinum_link_id));
+        m_trophy_table->setItem(i, static_cast<int>(gui::trophy_list_columns::time_unlocked), new custom_table_widget_item(datetime, Qt::UserRole, QVariant::fromValue<qulonglong>(tick)));
+
+        ++i;*/
+    }
+
+    return result;
 }
 
 static auto gen_key=[](const std::string& name)->std::string{
@@ -720,6 +932,10 @@ int register_aps3e_Emulator(JNIEnv* env){
             { "setup_game_id", "(Ljava/lang/String;)V", (void *) j_setup_game_id },
             {"install_edat", "(I)Z", (void *) j_install_edat},
             { "install_pkg", "(I)Z", (void *) j_install_pkg },
+            {"precompile_ppu_cache", "(Ljava/lang/String;)Z", (void *) j_precompile_ppu_cache},
+
+            {"precompile_ppu_cache", "(I)Z", (void *) j_precompile_ppu_cache_with_fd},
+            { "trophy_info_from_dir", "(Ljava/lang/String;Ljava/lang/String;)Laenu/aps3e/Emulator$GameTrophyInfo;", (void *) j_trophy_info_from_dir}
 
     };
 

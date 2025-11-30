@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
+#include <atomic>
 #include "aps3e_rp3_impl.h"
 #include "emulator.h"
 #include "emulator_aps3e.h"
@@ -776,6 +777,13 @@ namespace ae{
         return true;
     }
 
+    bool precompile_ppu_cache(const std::string& path,std::optional<int> fd) {
+
+        //setenv("APS3E_ENABLE_LOG","true",1);
+        ae::init();
+
+        return Emu.PrecompilePPUCache(path, fd);
+    }
 
     std::pair<std::string,bool> vk_lib_info(){
         const std::pair<std::string,bool> dedault_info={"libvulkan.so",false};

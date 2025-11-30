@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">Hiển thị thông tin cúp</string>
+<string name="create_ppu_cache">Tạo bộ nhớ đệm PPU</string>
+<string name="delete_ppu_cache">Xóa bộ nhớ đệm PPU</string>
+<string name="delete_spu_cache">Xóa bộ nhớ đệm SPU</string>
+<string name="no_found_trophy_info">Không tìm thấy thông tin cúp</string>
+
 	<string name="open_source_licenses">Giấy phép mã nguồn mở</string>
 <string name="buy_premium">Mua aPS3e Premium</string>
 

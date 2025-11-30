@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">Показать информацию о трофеях</string>
+<string name="create_ppu_cache">Создать кэш PPU</string>
+<string name="delete_ppu_cache">Удалить кэш PPU</string>
+<string name="delete_spu_cache">Удалить кэш SPU</string>
+<string name="no_found_trophy_info">Информация о трофеях не найдена</string>
+
 	<string name="open_source_licenses">Лицензии с открытым исходным кодом</string>
 	<string name="buy_premium">Купить aPS3e Premium</string>
 

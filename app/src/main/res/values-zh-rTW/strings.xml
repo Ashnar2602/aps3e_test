@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">顯示獎盃資訊</string>
+<string name="create_ppu_cache">建立 PPU 快取</string>
+<string name="delete_ppu_cache">刪除 PPU 快取</string>
+<string name="delete_spu_cache">刪除 SPU 快取</string>
+<string name="no_found_trophy_info">未找到獎盃資訊</string>
+
 <string name="open_source_licenses">開放原始碼授權</string>
 <string name="buy_premium">購買 aPS3e Premium</string>
 

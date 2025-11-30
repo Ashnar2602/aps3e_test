@@ -76,11 +76,14 @@
 #include "Emu/Cell/Modules/cellMsgDialog.h"
 #include "Emu/Cell/Modules/cellOskDialog.h"
 #include "Emu/Cell/Modules/sceNp.h"
+#include "Emu/Cell/lv2/sys_sync.h"
+#include "Emu/Cell/PPUFunction.h"
 
 #include "Crypto/unpkg.h"
 #include "Crypto/unself.h"
 #include "Crypto/unzip.h"
 #include "Crypto/decrypt_binaries.h"
+#include "Crypto/sha1.h"
 
 
 #include "Loader/iso.h"

@@ -5,6 +5,11 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.view.Window;
@@ -135,5 +140,18 @@ public class Utils {
             cursor.close();
         }
         return fileName;
+    }
+
+    static Bitmap to_gray_bmp(Bitmap src){
+        int w=src.getWidth();
+        int h=src.getHeight();
+        Bitmap bmp=Bitmap.createBitmap(w,h,src.getConfig());
+        ColorMatrix cm=new ColorMatrix();
+        cm.setSaturation(0);
+        Canvas canvas=new Canvas(bmp);
+        Paint paint=new Paint();
+        paint.setColorFilter(new ColorMatrixColorFilter(cm));
+        canvas.drawBitmap(src,0,0,paint);
+        return bmp;
     }
 }

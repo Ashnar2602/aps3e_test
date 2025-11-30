@@ -100,14 +100,18 @@ public class MainActivity extends AppCompatActivity {
 		return new File(Application.get_app_data_dir(),"config/dev_hdd0/home/00000001/trophy");
 	}
 
-	public static File[] get_shader_cache_dirs(String serial){
+	public static File[] get_ppu_cache_dirs(String serial){
 		File cache_dir=new File(Application.get_app_data_dir(),"cache/cache/"+serial);
 		if(!cache_dir.exists()) return null;
-		File[] cache_sub_dir=cache_dir.listFiles();
-		if( cache_sub_dir==null||cache_sub_dir.length==0) return null;
-		File[] shader_cache_dirs=new File[cache_sub_dir.length];
-		for(int i=0;i<cache_sub_dir.length;i++){
-			shader_cache_dirs[i]=new File(cache_sub_dir[i],"shaders_cache");
+		File[] ppu_cache_dir=cache_dir.listFiles();
+		return ppu_cache_dir;
+	}
+	public static File[] get_shader_cache_dirs(String serial){
+		File[] ppu_cache_dirs=get_ppu_cache_dirs(serial);
+		if( ppu_cache_dirs==null||ppu_cache_dirs.length==0) return null;
+		File[] shader_cache_dirs=new File[ppu_cache_dirs.length];
+		for(int i=0;i<ppu_cache_dirs.length;i++){
+			shader_cache_dirs[i]=new File(ppu_cache_dirs[i],"shaders_cache");
 		}
 		return shader_cache_dirs;
 	}
@@ -651,6 +655,79 @@ public class MainActivity extends AppCompatActivity {
 		else if(item_id==R.id.show_game_info){
 			show_hint_dialog(adapter.getMetaInfo(position).toString());
 		}
+		else if(item_id==R.id.show_trophy_info){
+			Emulator.MetaInfo meta_info=adapter.getMetaInfo(position);
+			Emulator.GameTrophyInfo trophy_info;
+			if((trophy_info=Emulator.GameTrophyManager.get_or_init().find(meta_info.name))!=null)
+				show_trophy_dialog(trophy_info);
+			else
+				Toast.makeText(this, "No Found Trophy Info", Toast.LENGTH_SHORT).show();
+		}
+		else if(item_id==R.id.create_ppu_cache){
+			(progress_task=new ProgressTask(MainActivity.this)
+					.set_done_task(new ProgressTask.UI_Task(){
+						@Override
+						public void run() {
+						}
+					}))
+					.call(new ProgressTask.Task() {
+						@Override
+						public void run(ProgressTask task) {
+							Emulator.MetaInfo meta_info=adapter.getMetaInfo(position);
+							if(meta_info.iso_uri!=null){
+								int pfd;
+								try {
+									ParcelFileDescriptor pfd_= getContentResolver().openFileDescriptor(Uri.parse(meta_info.iso_uri), "r");
+									pfd=pfd_.detachFd();
+									pfd_.close();
+								} catch (Exception e) {
+									Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+									return;
+								}
+								Emulator.get.precompile_ppu_cache(pfd);
+							}
+							else{
+								Emulator.get.precompile_ppu_cache(meta_info.eboot_path);
+							}
+							task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
+							progress_task=null;
+						}
+					});
+		}
+		else if(item_id==R.id.delete_ppu_cache){
+			show_verify_dialog(R.string.delete_ppu_cache, new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					(progress_task=new ProgressTask(MainActivity.this)
+							)
+							.call(new ProgressTask.Task() {
+								@Override
+								public void run(ProgressTask task) {
+									adapter.del_ppu_cache(position);
+									task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
+									progress_task=null;
+								}
+							});
+				}
+			});
+		}
+		else if(item_id==R.id.delete_spu_cache){
+			show_verify_dialog(R.string.delete_spu_cache, new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					(progress_task=new ProgressTask(MainActivity.this)
+					)
+							.call(new ProgressTask.Task() {
+								@Override
+								public void run(ProgressTask task) {
+									adapter.del_spu_cache(position);
+									task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
+									progress_task=null;
+								}
+							});
+				}
+			});
+		}
 		return super.onContextItemSelected(item);
 	}
 
@@ -694,7 +771,13 @@ public class MainActivity extends AppCompatActivity {
 				.setNegativeButton(android.R.string.cancel, null)
 				.create().show();
 	}
-
+	void show_trophy_dialog(Emulator.GameTrophyInfo game_trophy_info){
+		ListView layout=new ListView(this);
+		layout.setAdapter(new TrophyDialogAdapter( this, game_trophy_info));
+		androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+		builder.setView(layout);
+		builder.create().show();
+	}
 
 	static void mk_dirs(){
 		String[] sub_dir_paths={
@@ -1088,6 +1171,34 @@ public class MainActivity extends AppCompatActivity {
 				}
 		}
 
+		public  void del_ppu_cache(int pos){
+			Emulator.MetaInfo info=metas.get(pos);
+			File[] ppu_cache_dirs=get_ppu_cache_dirs(info.serial);
+			if(ppu_cache_dirs!=null)
+				for(File dir:ppu_cache_dirs){
+					File[] ppu_cache_files=dir.listFiles();
+					if(ppu_cache_files!=null)
+						for(File f:ppu_cache_files){
+							if(f.isFile()&&f.getName().endsWith(".gz"))
+								f.delete();
+						}
+				}
+		}
+
+		public  void del_spu_cache(int pos){
+			Emulator.MetaInfo info=metas.get(pos);
+			File[] ppu_cache_dirs=get_ppu_cache_dirs(info.serial);
+			if(ppu_cache_dirs!=null)
+				for(File dir:ppu_cache_dirs){
+					File[] ppu_cache_files=dir.listFiles();
+					if(ppu_cache_files!=null)
+						for(File f:ppu_cache_files){
+							if(f.isFile()&&f.getName().endsWith(".dat"))
+								f.delete();
+						}
+				}
+		}
+
         @Override
         public int getCount(){
             return metas.size();
@@ -1107,19 +1218,6 @@ public class MainActivity extends AppCompatActivity {
             return (LayoutInflater)context_.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         }
 
-		Bitmap to_gray_bmp(Bitmap src){
-			int w=src.getWidth();
-			int h=src.getHeight();
-			Bitmap bmp=Bitmap.createBitmap(w,h,src.getConfig());
-			ColorMatrix cm=new ColorMatrix();
-			cm.setSaturation(0);
-			Canvas canvas=new Canvas(bmp);
-			Paint paint=new Paint();
-			paint.setColorFilter(new ColorMatrixColorFilter(cm));
-			canvas.drawBitmap(src,0,0,paint);
-			return bmp;
-        }
-
         @Override
         public View getView(int pos,View curView,ViewGroup p3){
 
@@ -1136,7 +1234,7 @@ public class MainActivity extends AppCompatActivity {
 				Bitmap icon_bmp=BitmapFactory.decodeByteArray(mi.icon,0,mi.icon.length);
 				if(icon_bmp!=null){
 					if(!mi.decrypt)
-						icon_bmp=to_gray_bmp(icon_bmp);
+						icon_bmp=Utils.to_gray_bmp(icon_bmp);
 					icon.setImageBitmap(icon_bmp);
 				}
 				else
@@ -1164,4 +1262,54 @@ public class MainActivity extends AppCompatActivity {
             return curView;
         } 
     }//!FileAdapter
+
+	private static class TrophyDialogAdapter extends BaseAdapter {
+		private final Context context;
+		private final LayoutInflater inflater;
+		private Emulator.GameTrophyInfo trophy_info;
+
+
+		public TrophyDialogAdapter(Context context, Emulator.GameTrophyInfo trophy_info) {
+			this.context = context;
+			inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			this.trophy_info = trophy_info;
+		}
+
+		@Override
+		public int getCount() {
+			return trophy_info.trophies.length;
+		}
+
+		@Override
+		public Object getItem(int position) {
+			return null;
+		}
+
+		@Override
+		public long getItemId(int position) {
+			return 0;
+		}
+
+		@Override
+		public View getView(int position, View convertView, ViewGroup parent) {
+			if(convertView==null){
+				convertView=inflater.inflate(R.layout.game_item,null);
+			}
+
+			TextView name=(TextView)convertView.findViewById(R.id.game_name);
+			name.setText(trophy_info.trophies[position].name);
+			TextView version=(TextView)convertView.findViewById(R.id.game_version);
+			version.setText(trophy_info.trophies[position].unlocked?"Unlocked":"Locked");
+
+			ImageView icon=(ImageView)convertView.findViewById(R.id.game_icon);
+			Bitmap icon_bmp=BitmapFactory.decodeFile(trophy_info.trophies[position].icon_path);
+			if(icon_bmp!=null){
+				if(!trophy_info.trophies[position].unlocked) icon_bmp=Utils.to_gray_bmp(icon_bmp);
+				icon.setImageBitmap(icon_bmp);
+			}
+
+			return convertView;
+		}
+	}
+
 }

@@ -18,5 +18,7 @@ namespace ae{
     extern std::string get_gpu_info();
     extern std::string get_cpu_info();
 
+    extern bool precompile_ppu_cache(const std::string& path,std::optional<int> fd);
+
 }
 #endif //APS3E_EMULATOR_APS3E_H

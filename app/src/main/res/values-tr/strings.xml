@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="show_trophy_info">Kupa Bilgilerini Göster</string>
+<string name="create_ppu_cache">PPU Önbelleği Oluştur</string>
+<string name="delete_ppu_cache">PPU Önbelleğini Sil</string>
+<string name="delete_spu_cache">SPU Önbelleğini Sil</string>
+<string name="no_found_trophy_info">Kupa Bilgisi Bulunamadı</string>
 
 	<string name="open_source_licenses">Açık Kaynak Lisansları</string>
 	<string name="buy_premium">aPS3e Premium Satın Al</string>

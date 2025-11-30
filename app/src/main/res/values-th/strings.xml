@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">แสดงข้อมูลรางวัล</string>
+<string name="create_ppu_cache">สร้างแคช PPU</string>
+<string name="delete_ppu_cache">ลบแคช PPU</string>
+<string name="delete_spu_cache">ลบแคช SPU</string>
+<string name="no_found_trophy_info">ไม่พบข้อมูลรางวัล</string>
+
 <string name="open_source_licenses">ใบอนุญาตโอเพนซอร์ส</string>
 <string name="buy_premium">ซื้อ aPS3e Premium</string>
 

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="show_trophy_info">Tunjuk Maklumat Trofi</string>
+<string name="create_ppu_cache">Cipta Cache PPU</string>
+<string name="delete_ppu_cache">Padam Cache PPU</string>
+<string name="delete_spu_cache">Padam Cache SPU</string>
+<string name="no_found_trophy_info">Tiada Maklumat Trofi Dijumpai</string>
 
 	<string name="open_source_licenses">Lesen Sumber Terbuka</string>
 	<string name="buy_premium">Beli aPS3e Premium</string>

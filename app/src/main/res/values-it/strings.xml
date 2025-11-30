@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="show_trophy_info">Mostra informazioni trofeo</string>
+<string name="create_ppu_cache">Crea cache PPU</string>
+<string name="delete_ppu_cache">Elimina cache PPU</string>
+<string name="delete_spu_cache">Elimina cache SPU</string>
+<string name="no_found_trophy_info">Nessuna informazione trofeo trovata</string>
 
     <string name="open_source_licenses">Licenze Open Source</string>
     <string name="buy_premium">Acquista aPS3e Premium</string>

@@ -3,6 +3,12 @@
     <!--string name="app_name">aPS3e Premium</string-->
 	<string name="app_name">aPS3e</string>
 
+	<string name="show_trophy_info">Show Trophy Info</string>
+	<string name="create_ppu_cache">Create PPU Cache</string>
+	<string name="delete_ppu_cache">Delete PPU Cache</string>
+	<string name="delete_spu_cache">Delete SPU Cache</string>
+	<string name="no_found_trophy_info">No Found Trophy Info</string>
+
 	<string name="open_source_licenses">Open Source Licenses</string>
 	<string name="buy_premium">Buy aPS3e Premium</string>
 

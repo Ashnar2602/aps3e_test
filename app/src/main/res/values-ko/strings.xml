@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">트로피 정보 보기</string>
+<string name="create_ppu_cache">PPU 캐시 생성</string>
+<string name="delete_ppu_cache">PPU 캐시 삭제</string>
+<string name="delete_spu_cache">SPU 캐시 삭제</string>
+<string name="no_found_trophy_info">트로피 정보를 찾을 수 없음</string>
+
 <string name="open_source_licenses">오픈 소스 라이선스</string>
 <string name="buy_premium">aPS3e Premium 구매</string>
 

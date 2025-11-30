@@ -10,6 +10,7 @@ import java.util.List;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.view.*;
 
 import androidx.annotation.NonNull;
@@ -145,6 +146,65 @@ public class Emulator extends aenu.emulator.Emulator
 					.append("Resolution:\n").append(print_resolution()).append("\n\n")
 					.append("Sound Format:\n").append(_parse_sound_format()).append("\n\n");
 			return sb.toString();
+		}
+	}
+
+	static class GameTrophyInfo{
+		static class TrophyInfo{
+			String icon_path;
+			String name;
+			String description;
+			byte type;
+			long timestamp;
+			boolean unlocked;
+		}
+		String game_name;
+		TrophyInfo[] trophies;
+	}
+
+
+	static class GameTrophyManager{
+		static GameTrophyManager instance;
+		static GameTrophyManager get_or_init(){
+			if(instance==null)
+				instance=new GameTrophyManager();
+			return instance;
+		}
+
+		List<GameTrophyInfo> trophy_list=new ArrayList<GameTrophyInfo>();
+
+		GameTrophyManager(){
+
+			final String user_id="00000001";
+			final String child=String.format("config/dev_hdd0/home/%s/trophy",user_id);
+			final File trophy_dirs=new File(Application.get_app_data_dir(),child);
+
+			final List<File> trophy_dir_list=new ArrayList<File>();
+			if(trophy_dirs.exists()){
+				File[] dirs=trophy_dirs.listFiles();
+				if(dirs!=null)
+					for(File f:dirs)
+						if(f.isDirectory())
+							trophy_dir_list.add(f);
+			}
+
+			for(File dir:trophy_dir_list){
+				final File tropusr_file=new File(dir,"TROPUSR.DAT");
+				final File tropconf_file=new File(dir,"TROPCONF.SFM");
+				if(tropusr_file.exists()&&tropconf_file.exists()){
+					String vfs_path=String.format("/dev_hdd0/home/%s/trophy/%s",user_id,dir.getName());
+					GameTrophyInfo game_trophy_info = Emulator.get.trophy_info_from_dir(dir.getAbsolutePath(),vfs_path);
+					trophy_list.add(game_trophy_info);
+				}
+			}
+		}
+
+		GameTrophyInfo find(String game_name){
+			for(GameTrophyInfo info:trophy_list){
+				if(info.game_name.equals(game_name))
+					return info;
+			}
+			return null;
 		}
 	}
 
@@ -573,5 +633,10 @@ public class Emulator extends aenu.emulator.Emulator
 	public native int get_cpu_core_count();
 	public native String get_cpu_name(int core_idx);
 	public native int get_cpu_max_mhz(int core_idx);
+
+	public native boolean precompile_ppu_cache(String path);
+	public native boolean precompile_ppu_cache(int fd);
+
+	private native GameTrophyInfo trophy_info_from_dir(String real_path,String vfs_path);
     
 }

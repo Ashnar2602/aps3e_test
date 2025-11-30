@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <resources>
+    <string name="show_trophy_info">トロフィー情報を表示</string>
+<string name="create_ppu_cache">PPUキャッシュを作成</string>
+<string name="delete_ppu_cache">PPUキャッシュを削除</string>
+<string name="delete_spu_cache">SPUキャッシュを削除</string>
+<string name="no_found_trophy_info">トロフィー情報が見つかりません</string>
+
     <string name="open_source_licenses">オープンソースライセンス</string>
 <string name="buy_premium">aPS3e Premiumを購入</string>
 

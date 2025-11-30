@@ -43,6 +43,7 @@
 
 #include "../Crypto/unself.h"
 #include "../Crypto/unzip.h"
+#include "../Crypto/sha1.h"
 #include "util/logs.hpp"
 #include "util/init_mutex.hpp"
 #include "util/sysinfo.hpp"
@@ -4683,4 +4684,270 @@ void Emulator::SaveSettings(const std::string& settings, const std::string& titl
 	// Backup config
 	g_backup_cfg.from_string(g_cfg.to_string());
 }
+bool Emulator::PrecompilePPUCache(const std::string& path,std::optional<int> iso_fd){
+
+    m_path = path;
+
+    if(iso_fd){
+        m_iso_fs=std::move(iso_fs::from_fd(*iso_fd));
+        if(!m_iso_fs->load())
+            return false;
+    }
+
+    const std::string elf_dir = fs::get_parent_dir(m_path);
+    m_state=system_state::running;
+
+    g_fxo->reset();
+    psf::registry psf;
+    fs::file elf_file;
+
+    if(m_iso_fs){
+        std::vector<uint8_t> psf_data=m_iso_fs->get_data_tiny(":PS3_GAME/PARAM.SFO");
+        psf=psf::load_object(fs::file(psf_data.data(),psf_data.size()),"PS3_GAME/PARAM.SFO"sv);
+    }
+    else{
+        auto fetch_psf_path=[](const std::string& dir_path){
+            std::string sub_paths[]={
+                    "/PARAM.SFO","/PS3_GAME/PARAM.SFO"
+            };
+            for(std::string& sub_path:sub_paths){
+                std::string psf_path=dir_path+sub_path;
+                if(std::filesystem::exists(psf_path))
+                    return psf_path;
+            }
+            return std::string{};
+        };
+
+        psf=psf::load_object(fetch_psf_path(elf_dir));
+    }
+
+    if(m_iso_fs)
+        elf_file = fs::file(*m_iso_fs,m_path);
+    else
+        elf_file = fs::file(m_path);
+
+
+    m_title = std::string(psf::get_string(psf, "TITLE", std::string_view(m_path).substr(m_path.find_last_of(fs::delim) + 1)));
+    m_title_id = std::string(psf::get_string(psf, "TITLE_ID"));
+    m_cat = std::string(psf::get_string(psf, "CATEGORY"));
+    // Check SELF header
+    if (elf_file.size() >= 4 && elf_file.read<u32>() == "SCE\0"_u32)
+    {
+        // Decrypt SELF
+        elf_file = decrypt_self(elf_file);
+    }
+    g_fxo->init<named_thread<progress_dialog_server>>();
+    ensure(g_fxo->init<main_ppu_module<lv2_obj>>());
+
+    // Initialize patch engine
+    g_fxo->need<patch_engine>();
+    g_fxo->init(false, nullptr);
+
+    // Load patches from different locations
+    g_fxo->get<patch_engine>().append_global_patches();
+    g_fxo->get<patch_engine>().append_title_patches(m_title_id);
+    ppu_exec_object ppu_exec;
+    if (ppu_exec.open(elf_file) != elf_error::ok)
+        return false;
+    const ppu_exec_object& elf=ppu_exec;
+    // Check if it is a standalone executable first
+    for (const auto& prog : elf.progs)
+    {
+        if (prog.p_type == 0x1u /* LOAD */ && prog.p_memsz)
+        {
+            using addr_range = utils::address_range;
+
+            const addr_range r = addr_range::start_length(static_cast<u32>(prog.p_vaddr), static_cast<u32>(prog.p_memsz));
+
+            if ((prog.p_vaddr | prog.p_memsz) > u32{umax} || !r.valid() || !r.inside(addr_range::start_length(0x00000000, 0x30000000)))
+            {
+                return false;
+            }
+        }
+    }
+    extern void init_ppu_functions(utils::serial* ar, bool full);
+    init_ppu_functions(nullptr,false);
+    auto& _main = g_fxo->get<main_ppu_module<lv2_obj>>();
+
+// Limit for analysis
+    u32 end = 0;
+
+// Executable hash
+    sha1_context sha;
+    sha1_starts(&sha);
+
+    //u32 segs_size = 0;
+// Allocate memory at fixed positions
+    for (const auto& prog : elf.progs)
+    {
+        ppu_segment _seg;
+        const u32 addr = _seg.addr = vm::cast(prog.p_vaddr);
+        const u32 size = _seg.size = ::narrow<u32>(prog.p_memsz);
+        const u32 type = _seg.type = prog.p_type;
+
+        _seg.flags  = prog.p_flags;
+        _seg.filesz = ::narrow<u32>(prog.p_filesz);
+
+        // Hash big-endian values
+        sha1_update(&sha, reinterpret_cast<const uchar*>(&prog.p_type), sizeof(prog.p_type));
+        sha1_update(&sha, reinterpret_cast<const uchar*>(&prog.p_flags), sizeof(prog.p_flags));
+
+        if (type == 0x1 /* LOAD */ && prog.p_memsz)
+        {
+            if (prog.bin.size() > size || prog.bin.size() != prog.p_filesz)
+            {
+                return false;
+            }
+
+            constexpr bool already_loaded = false;
+
+            _seg.ptr = vm::base(addr);
+
+            {
+                // Leave additional room for the analyser so it can safely access beyond limit a bit
+                // Because with VM the address sapce is not really a limit so any u32 address is valid there, here it is UB to create pointer that goes beyond the boundaries
+                // TODO: Use make_shared_for_overwrite when all compilers support it
+                const usz alloc_size = utils::align<usz>(size, 0x10000) + 4096;
+                _main.allocations.push_back(std::shared_ptr<u8[]>(new u8[alloc_size]));
+                _seg.ptr = _main.allocations.back().get();
+                std::memset(static_cast<u8*>(_seg.ptr) + prog.bin.size(), 0, alloc_size - 4096 - prog.bin.size());
+            }
+
+
+            // Store only LOAD segments (TODO)
+            _main.segs.emplace_back(_seg);
+            _main.addr_to_seg_index.emplace(addr, ::size32(_main.segs) - 1);
+
+            // Copy segment data, hash it
+            {
+                std::memcpy(_main.get_ptr<void>(addr), prog.bin.data(), prog.bin.size());
+            }
+
+
+            sha1_update(&sha, reinterpret_cast<const uchar*>(&prog.p_vaddr), sizeof(prog.p_vaddr));
+            sha1_update(&sha, reinterpret_cast<const uchar*>(&prog.p_memsz), sizeof(prog.p_memsz));
+            sha1_update(&sha, prog.bin.data(), prog.bin.size());
+
+            //segs_size += utils::align<u32>(size + (addr % 0x10000), 0x10000);
+        }
+    }
+// Load section list, used by the analyser
+    for (const auto& s : elf.shdrs)
+    {
+        if (s.sh_type != sec_type::sht_progbits) continue;
+
+        ppu_segment _sec;
+        const u32 addr = _sec.addr = vm::cast(s.sh_addr);
+        const u32 size = _sec.size = vm::cast(s.sh_size);
+
+        _sec.type = std::bit_cast<u32>(s.sh_type);
+        _sec.flags = static_cast<u32>(s._sh_flags & 7);
+        _sec.filesz = 0;
+
+        if (addr && size)
+        {
+            _main.secs.emplace_back(_sec);
+
+            if (_sec.flags & 0x4 && addr >= _main.segs[0].addr && addr + size <= _main.segs[0].addr + _main.segs[0].size)
+            {
+                end = std::max<u32>(end, addr + size);
+            }
+        }
+    }
+
+    sha1_finish(&sha, _main.sha1);
+// Format patch name
+    std::string hash("PPU-0000000000000000000000000000000000000000");
+    for (u32 i = 0; i < 20; i++)
+    {
+        constexpr auto pal = "0123456789abcdef";
+        hash[4 + i * 2] = pal[_main.sha1[i] >> 4];
+        hash[5 + i * 2] = pal[_main.sha1[i] & 15];
+    }
+    //Emu.SetExecutableHash(hash);
+
+// Apply the patch
+    std::vector<u32> applied;
+
+    g_fxo->get<patch_engine>().apply(applied, hash, [&](u32 addr, u32 size) { return _main.get_ptr<u8>(addr, size);  });
+
+        if (!Emu.GetTitleID().empty())
+        {
+            // Alternative patch
+            g_fxo->get<patch_engine>().apply(applied, Emu.GetTitleID() + '-' + hash, [&](u32 addr, u32 size) { return _main.get_ptr<u8>(addr, size); });
+        }
+
+        if (!applied.empty())
+        {
+            // Compare memory changes in memory after executable code sections end
+            if (end >= _main.segs[0].addr && end < _main.segs[0].addr + _main.segs[0].size)
+            {
+                for (const auto& prog : elf.progs)
+                {
+                    // Find the first segment
+                    if (prog.p_type == 0x1u /* LOAD */ && prog.p_memsz)
+                    {
+                        std::span<const uchar> elf_memory{prog.bin.begin(), prog.bin.size()};
+                        elf_memory = elf_memory.subspan(end - _main.segs[0].addr);
+
+                        const auto tmp = std::span<uchar>{&_main.get_ref<u8>(end), elf_memory.size()};
+                        if (!std::equal(elf_memory.begin(), elf_memory.end(), tmp.begin(), tmp.end()))
+                        {
+                            // There are changes, disable analysis optimization
+                            //ppu_loader.notice("Disabling analysis optimization due to memory changes from original file");
+
+                            end = 0;
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+// Program entry
+    u32 entry = static_cast<u32>(elf.header.e_entry); // Run entry from elf (HLE)
+
+// Set path (TODO)
+    _main.name.clear();
+    _main.path = m_path;
+
+    _main.elf_entry = static_cast<u32>(elf.header.e_entry);
+    _main.seg0_code_end = end;
+    _main.applied_patches = applied;
+
+    std::vector<std::string> dir_queue;
+
+    dir_queue.emplace_back(elf_dir);
+
+// Initialize HLE modules
+    std::vector<ppu_module<lv2_obj>*> mod_list;
+
+    if (auto& _main = *ensure(g_fxo->try_get<main_ppu_module<lv2_obj>>()); !_main.path.empty())
+    {
+        if (!_main.analyse(0, _main.elf_entry, _main.seg0_code_end, _main.applied_patches, std::vector<u32>{}))
+        {
+            return false;
+        }
+        _main.cache = rpcs3::utils::get_cache_dir(_main.path);
+
+        fmt::append(_main.cache, "ppu-%s-%s/", fmt::base57(_main.sha1), _main.path.substr(_main.path.find_last_of('/') + 1));
+
+        if (!fs::create_path(_main.cache)){
+            sys_log.error("Failed to create cache directory: %s (%s)", _main.cache, fs::g_tls_error);
+        }
+
+        Emu.ConfigurePPUCache();
+        ppu_initialize(_main);
+        mod_list.emplace_back(&_main);
+    }
+
+    ppu_precompile(dir_queue, mod_list.empty() ? nullptr : &mod_list);
+
+    g_fxo->reset();
+    m_iso_fs.reset();
+    m_state=system_state::stopped;
+
+    return true;
+}
+
 Emulator Emu;

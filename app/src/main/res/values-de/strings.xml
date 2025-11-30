@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <string name="show_trophy_info">Zeige Trophäen-Info</string>
+<string name="create_ppu_cache">PPU-Cache erstellen</string>
+<string name="delete_ppu_cache">PPU-Cache löschen</string>
+<string name="delete_spu_cache">SPU-Cache löschen</string>
+<string name="no_found_trophy_info">Keine Trophäen-Info gefunden</string>
+
     	<string name="open_source_licenses">Open Source Lizenzen</string>
 	<string name="buy_premium">aPS3e Premium kaufen</string>
 

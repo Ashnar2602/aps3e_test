@@ -4,6 +4,12 @@
 	<!--无法转义',&apos;会报错 -->
 	<!-- +++++++++++++++++++++++++++ -->
 
+	<string name="show_trophy_info">Afficher les informations du trophée</string>
+<string name="create_ppu_cache">Créer le cache PPU</string>
+<string name="delete_ppu_cache">Supprimer le cache PPU</string>
+<string name="delete_spu_cache">Supprimer le cache SPU</string>
+<string name="no_found_trophy_info">Aucune information de trophée trouvée</string>
+
 	<string name="open_source_licenses">Licences Open Source</string>
 	<string name="buy_premium">Acheter aPS3e Premium</string>
 

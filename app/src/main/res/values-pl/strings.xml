@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="show_trophy_info">Pokaż informacje o trofeum</string>
+<string name="create_ppu_cache">Utwórz pamięć podręczną PPU</string>
+<string name="delete_ppu_cache">Usuń pamięć podręczną PPU</string>
+<string name="delete_spu_cache">Usuń pamięć podręczną SPU</string>
+<string name="no_found_trophy_info">Nie znaleziono informacji o trofeum</string>
 
     <string name="open_source_licenses">Licencje Open Source</string>
     <string name="buy_premium">Kup aPS3e Premium</string>

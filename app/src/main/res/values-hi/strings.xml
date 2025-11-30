@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="show_trophy_info">ट्रॉफी जानकारी दिखाएं</string>
+<string name="create_ppu_cache">PPU कैश बनाएं</string>
+<string name="delete_ppu_cache">PPU कैश हटाएं</string>
+<string name="delete_spu_cache">SPU कैश हटाएं</string>
+<string name="no_found_trophy_info">कोई ट्रॉफी जानकारी नहीं मिली</string>
+
 	<string name="open_source_licenses">ओपन सोर्स लाइसेंस</string>
 <string name="buy_premium">aPS3e Premium खरीदें</string>
 
