@@ -1022,6 +1022,5 @@
 	<string name="SAVESTATE_FAILED_DUE_TO_MISSING_SPU_SETTING">Spielstand fehlgeschlagen: SPU-Zustandssperre fehlgeschlagen, Aktivierung des SPU-Kompatibilitätsmodus könnte helfen.</string>
 	<string name="SAVESTATE_FAILED_DUE_TO_SPU">Spielstand fehlgeschlagen: SPU-Zustandssperre fehlgeschlagen, Nutzung von SPU ASMJIT wird helfen.</string>
 	<string name="PROGRESS_DIALOG_PRELOADING_SHADER_CACHE">Zwischengespeicherte Shaders werden vorgeladen...</string>
-/
     <string name="force_cover_art_search">Cover-Art-Suche erzwingen</string>
 </resources>
