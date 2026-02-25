@@ -122,6 +122,11 @@
 	<string name="settings">Settings</string>
 	<string name="force_cover_art_search">Force Cover Art Search</string>
 	<string name="emulator_settings_general">General</string>
+	<string name="ui_theme_mode">App Theme</string>
+	<string name="ui_theme_mode_summary">Choose follow system, light or dark mode for the app interface</string>
+	<string name="ui_theme_mode_system">Follow System</string>
+	<string name="ui_theme_mode_light">Light</string>
+	<string name="ui_theme_mode_dark">Dark</string>
 	<string name="invalid_config_file">Invalid configuration file.</string>
 	<string name="modified">Modified</string>
 	<string name="value">Value</string>
