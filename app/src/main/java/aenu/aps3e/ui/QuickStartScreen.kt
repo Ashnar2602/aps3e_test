@@ -261,7 +261,7 @@ private fun StepContent(
         ) {
             Text(
                 text = step.title,
-                color = Color.White,
+                color = Aps3eColors.OnSurface,
                 fontWeight = FontWeight.Bold
             )
             Text(

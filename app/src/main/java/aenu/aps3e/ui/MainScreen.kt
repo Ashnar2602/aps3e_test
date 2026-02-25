@@ -554,7 +554,7 @@ private fun ActionCard(action: MoreAction, onDismiss: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = action.title,
-                    color = Color.White,
+                    color = Aps3eColors.OnSurface,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
@@ -1273,7 +1273,7 @@ private fun CarouselCardPortrait(
                 GameCover(meta = meta, coverPath = coverPath)
                 Box(modifier = Modifier.align(Alignment.TopEnd)) {
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = Aps3eColors.OnSurface)
                     }
                     GameActionMenu(
                         expanded = showMenu,
@@ -1406,7 +1406,7 @@ private fun GameCard(
                 GameCover(meta = meta, coverPath = coverPath)
                 Box(modifier = Modifier.align(Alignment.TopEnd)) {
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = Aps3eColors.OnSurface)
                     }
                     GameActionMenu(
                         expanded = showMenu,
@@ -1422,7 +1422,7 @@ private fun GameCard(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = displayTitle,
-                color = Color.White,
+                color = Aps3eColors.OnSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
@@ -1643,7 +1643,7 @@ private fun StatusChip(text: String, ok: Boolean) {
             .background(background)
             .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
-        Text(text = text, fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+        Text(text = text, fontSize = 10.sp, color = Aps3eColors.OnBackground, fontWeight = FontWeight.Bold)
     }
 }
 

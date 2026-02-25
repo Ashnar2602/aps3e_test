@@ -1064,6 +1064,13 @@
     <PreferenceScreen app:title="@string/emulator_settings_miscellaneous"
         app:key="Miscellaneous" >
 
+        <aenu.preference.ListPreference app:title="@string/ui_theme_mode"
+            app:summary="@string/ui_theme_mode_summary"
+            app:entries="@array/ui_theme_mode_entries"
+            app:entryValues="@array/ui_theme_mode_values"
+            app:key="ui_theme_mode"
+            app:defaultValue="system" />
+
         <aenu.preference.CheckBoxPreference app:title="@string/emulator_settings_miscellaneous_automatically_start_games_after_boot"
             app:key="Miscellaneous|Automatically start games after boot" />
 

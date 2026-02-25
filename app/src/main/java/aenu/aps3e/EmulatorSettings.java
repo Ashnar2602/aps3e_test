@@ -46,6 +46,8 @@ import org.json.JSONObject;
 import aenu.preference.CheckBoxPreference;
 import aenu.preference.ListPreference;
 import aenu.preference.SeekBarPreference;
+import aenu.aps3e.ui.ThemeMode;
+import aenu.aps3e.ui.ThemePreferences;
 
 
 import java.io.ByteArrayOutputStream;
@@ -604,6 +606,29 @@ public class EmulatorSettings extends AppCompatActivity {
             for (String key:NODE_KEYS){
                 PreferenceScreen pref=findPreference(key);
                 pref.setOnPreferenceClickListener(this);
+            }
+
+            ListPreference themeModePref = findPreference("ui_theme_mode");
+            if (themeModePref != null) {
+                themeModePref.setValue(ThemePreferences.getThemeMode(requireContext()).getValue());
+                themeModePref.setSummary(themeModePref.getEntry());
+                themeModePref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                    @Override
+                    public boolean onPreferenceChange(@NonNull Preference preference, Object newValue) {
+                        CharSequence value = (CharSequence) newValue;
+                        CharSequence[] values = themeModePref.getEntryValues();
+                        CharSequence[] entries = themeModePref.getEntries();
+                        for (int i = 0; i < values.length; i++) {
+                            if (values[i].equals(value)) {
+                                themeModePref.setSummary(entries[i]);
+                                break;
+                            }
+                        }
+                        ThemePreferences.setThemeMode(requireContext(), ThemeMode.fromStored(value.toString()));
+                        requireActivity().recreate();
+                        return true;
+                    }
+                });
             }
 
             findPreference("Core|Libraries Control").setOnPreferenceClickListener(this);
