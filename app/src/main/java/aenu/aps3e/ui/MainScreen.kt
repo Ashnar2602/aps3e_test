@@ -5,6 +5,9 @@ import aenu.aps3e.R
 import aenu.aps3e.data.CoverRefreshResult
 import aenu.aps3e.data.CoverRepository
 import aenu.aps3e.data.GameCoverRequest
+import aenu.aps3e.ui.components.ApsActionSheet
+import aenu.aps3e.ui.components.ApsSheetAction
+import aenu.aps3e.ui.components.ApsSheetSection
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -59,7 +62,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.OutlinedTextField
@@ -118,9 +120,9 @@ interface MainScreenCallbacks {
     fun onSetIsoDir()
     fun onOpenQuickStart()
     fun onBuyPremium()
-    fun onGameClick(position: Int)
-    fun onGameAction(actionId: Int, position: Int)
-    fun isDiscGame(position: Int): Boolean
+    fun onGameClick(gameRef: GameRef)
+    fun onGameAction(actionId: Int, gameRef: GameRef)
+    fun isDiscGame(gameRef: GameRef): Boolean
     fun onResumeLastGame(info: LastPlayedInfo)
 }
 
@@ -137,12 +139,26 @@ data class LastPlayedInfo(
     val gameDir: String?
 )
 
+data class GameRef(
+    val serial: String?,
+    val isoUri: String?,
+    val ebootPath: String?
+)
+
 private sealed class LibraryEntry {
     data class LastPlayed(val info: LastPlayedInfo, val coverPath: String?) : LibraryEntry()
     data class Game(val meta: Emulator.MetaInfo) : LibraryEntry()
 }
 
 private const val COVER_ASPECT_RATIO = 0.7f
+
+private fun Emulator.MetaInfo.toGameRef(): GameRef {
+    return GameRef(
+        serial = getSerial(),
+        isoUri = getIsoUri(),
+        ebootPath = getEbootPath()
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -401,13 +417,6 @@ fun Aps3eMainScreen(
     }
 }
 
-private data class MoreAction(
-    val title: String,
-    val subtitle: String,
-    val accent: Color,
-    val onClick: () -> Unit
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MoreActionsSheet(
@@ -425,25 +434,25 @@ private fun MoreActionsSheet(
     onForceRefreshCovers: () -> Unit
 ) {
     val setupActions = listOf(
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.install_firmware),
             subtitle = stringResource(id = R.string.installing_firmware),
             accent = Aps3eColors.Primary,
             onClick = onInstallFirmware
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.set_iso_dir),
             subtitle = stringResource(id = R.string.select_ps3_iso_dir_hiht_content),
             accent = Aps3eColors.Secondary,
             onClick = onSetIsoDir
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.quick_start_page),
             subtitle = stringResource(id = R.string.welcome),
             accent = Aps3eColors.Accent,
             onClick = onOpenQuickStart
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.force_cover_art_search),
             subtitle = stringResource(id = R.string.refresh_list),
             accent = Aps3eColors.Warning,
@@ -452,19 +461,19 @@ private fun MoreActionsSheet(
     )
 
     val toolsActions = listOf(
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.key_mappers),
             subtitle = stringResource(id = R.string.key_mappers),
             accent = Aps3eColors.Warning,
             onClick = onOpenKeymap
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.virtual_pad_edit),
             subtitle = stringResource(id = R.string.virtual_pad_edit),
             accent = Aps3eColors.Primary,
             onClick = onOpenVirtualPadEdit
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.open_file_manager),
             subtitle = stringResource(id = R.string.open_file_manager),
             accent = Aps3eColors.Secondary,
@@ -473,19 +482,19 @@ private fun MoreActionsSheet(
     )
 
     val infoActions = listOf(
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.about),
             subtitle = stringResource(id = R.string.device_info),
             accent = Aps3eColors.Accent,
             onClick = onOpenAbout
         ),
-        MoreAction(
+        ApsSheetAction(
             title = stringResource(id = R.string.buy_premium),
             subtitle = stringResource(id = R.string.buy_premium),
             accent = Aps3eColors.Warning,
             onClick = onBuyPremium
         ),
-        MoreAction(
+        ApsSheetAction(
             title = "Refresh covers",
             subtitle = stringResource(id = R.string.refresh_list),
             accent = Aps3eColors.Secondary,
@@ -493,80 +502,17 @@ private fun MoreActionsSheet(
         )
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
+    val sections = listOf(
+        ApsSheetSection(title = "Setup", actions = setupActions),
+        ApsSheetSection(title = "Tools", actions = toolsActions),
+        ApsSheetSection(title = "Info", actions = infoActions)
+    )
+
+    ApsActionSheet(
         sheetState = sheetState,
-        containerColor = Aps3eColors.Surface
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            SheetSection(title = "Setup", actions = setupActions, onDismiss = onDismiss)
-            SheetSection(title = "Tools", actions = toolsActions, onDismiss = onDismiss)
-            SheetSection(title = "Info", actions = infoActions, onDismiss = onDismiss)
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-    }
-}
-
-@Composable
-private fun SheetSection(title: String, actions: List<MoreAction>, onDismiss: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = title,
-            color = Aps3eColors.OnSurface,
-            fontWeight = FontWeight.SemiBold
-        )
-        actions.forEach { action ->
-            ActionCard(action = action, onDismiss = onDismiss)
-        }
-    }
-}
-
-@Composable
-private fun ActionCard(action: MoreAction, onDismiss: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                onDismiss()
-                action.onClick()
-            },
-        colors = CardDefaults.cardColors(containerColor = Aps3eColors.CardBackground),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(action.accent)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = action.title,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = action.subtitle,
-                    color = Aps3eColors.OnSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 12.sp
-                )
-            }
-        }
-    }
+        onDismissRequest = onDismiss,
+        sections = sections
+    )
 }
 
 @Composable
@@ -792,7 +738,7 @@ private fun GameGrid(
             span = { _, entry ->
                 if (entry is LibraryEntry.LastPlayed) GridItemSpan(maxLineSpan) else GridItemSpan(1)
             }
-        ) { index, entry ->
+        ) { _, entry ->
             when (entry) {
                 is LibraryEntry.LastPlayed -> {
                     LastPlayedCard(
@@ -803,13 +749,13 @@ private fun GameGrid(
                 }
                 is LibraryEntry.Game -> {
                     val meta = entry.meta
-                    val position = if (lastPlayedInfo != null) index - 1 else index
+                    val gameRef = meta.toGameRef()
                     GameCard(
                         meta = meta,
                         coverPath = meta.getSerial()?.let { coverPaths[it] },
-                        onClick = { callbacks.onGameClick(position) },
-                        onAction = { actionId -> callbacks.onGameAction(actionId, position) },
-                        isDiscGame = callbacks.isDiscGame(position),
+                        onClick = { callbacks.onGameClick(gameRef) },
+                        onAction = { actionId -> callbacks.onGameAction(actionId, gameRef) },
+                        isDiscGame = callbacks.isDiscGame(gameRef),
                         sizeScale = cardScale,
                         showDetails = showDetails
                     )
@@ -848,13 +794,14 @@ private fun GameList(
                     )
                 }
             }
-            listItemsIndexed(metas) { index, meta ->
+            listItemsIndexed(metas) { _, meta ->
+                val gameRef = meta.toGameRef()
                 GameListItem(
                     meta = meta,
                     coverPath = meta.getSerial()?.let { coverPaths[it] },
-                    onClick = { callbacks.onGameClick(index) },
-                    onAction = { actionId -> callbacks.onGameAction(actionId, index) },
-                    isDiscGame = callbacks.isDiscGame(index),
+                    onClick = { callbacks.onGameClick(gameRef) },
+                    onAction = { actionId -> callbacks.onGameAction(actionId, gameRef) },
+                    isDiscGame = callbacks.isDiscGame(gameRef),
                     showDetails = showDetails
                 )
             }
@@ -1052,6 +999,7 @@ private fun CarouselPager(
             pageSpacing = if (isPortrait) (-50).dp else (-100).dp
         ) { page ->
             val meta = metas[page]
+            val gameRef = meta.toGameRef()
             val serial = meta.getSerial()
             val description = if (!isPortrait && serial != null) {
                 gameDescriptions[serial]?.takeIf { it.isNotBlank() }
@@ -1082,9 +1030,9 @@ private fun CarouselPager(
                     coverPath = meta.getSerial()?.let { coverPaths[it] },
                     modifier = baseModifier,
                     isCenter = absoluteOffset < 0.5f,
-                    onClick = { callbacks.onGameClick(page) },
-                    onAction = { actionId -> callbacks.onGameAction(actionId, page) },
-                    isDiscGame = callbacks.isDiscGame(page),
+                    onClick = { callbacks.onGameClick(gameRef) },
+                    onAction = { actionId -> callbacks.onGameAction(actionId, gameRef) },
+                    isDiscGame = callbacks.isDiscGame(gameRef),
                     showDetails = showDetails
                 )
             } else {
@@ -1094,9 +1042,9 @@ private fun CarouselPager(
                     modifier = baseModifier,
                     isCenter = absoluteOffset < 0.5f,
                     description = description,
-                    onClick = { callbacks.onGameClick(page) },
-                    onAction = { actionId -> callbacks.onGameAction(actionId, page) },
-                    isDiscGame = callbacks.isDiscGame(page),
+                    onClick = { callbacks.onGameClick(gameRef) },
+                    onAction = { actionId -> callbacks.onGameAction(actionId, gameRef) },
+                    isDiscGame = callbacks.isDiscGame(gameRef),
                     showDetails = showDetails
                 )
             }

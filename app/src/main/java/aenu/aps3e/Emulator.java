@@ -41,6 +41,14 @@ public class Emulator extends aenu.emulator.Emulator
 			return serial;
 		}
 
+		public String getIsoUri() {
+			return iso_uri;
+		}
+
+		public String getEbootPath() {
+			return eboot_path;
+		}
+
 		public String getVersion() {
 			return version;
 		}

@@ -2,6 +2,7 @@ package aenu.aps3e
 
 import aenu.aps3e.ui.Aps3eColors
 import aenu.aps3e.ui.Aps3eTheme
+import aenu.aps3e.ui.components.ApsSelectionDialog
 import aenu.emulator.Emulator as BaseEmulator
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -115,6 +116,7 @@ fun EmulatorSettingsScreen(
     val context = LocalContext.current
     val settingsIndex = remember { buildSettingsIndex(context) }
     var selectedTab by remember { mutableStateOf(SettingsTab.General) }
+    var themeMode by remember { mutableStateOf(AppThemeManager.getThemeMode(context)) }
 
     val generalStack = remember { mutableStateOf(listOf("__general_root__")) }
     val graphicsStack = remember { mutableStateOf(listOf("Video")) }
@@ -219,7 +221,15 @@ fun EmulatorSettingsScreen(
                             },
                             isGlobal = isGlobal,
                             supportsCustomDriver = Emulator.get.support_custom_driver(),
-                            configPath = configPath
+                            configPath = configPath,
+                            appThemeMode = themeMode,
+                            onThemeModeChange = { mode ->
+                                if (themeMode != mode) {
+                                    themeMode = mode
+                                    AppThemeManager.setThemeMode(context, mode)
+                                    activity.recreate()
+                                }
+                            }
                         )
                     }
                     SettingsTab.Graphics -> {
@@ -288,7 +298,9 @@ private fun GeneralSettingsContent(
     onUseGlobal: () -> Unit,
     isGlobal: Boolean,
     supportsCustomDriver: Boolean,
-    configPath: String?
+    configPath: String?,
+    appThemeMode: AppThemeManager.ThemeMode,
+    onThemeModeChange: (AppThemeManager.ThemeMode) -> Unit
 ) {
     val currentKey = stack.last()
     if (currentKey == "__general_root__") {
@@ -304,6 +316,12 @@ private fun GeneralSettingsContent(
             title = stringResource(id = R.string.emulator_settings_general),
             sections = sections.mapNotNull { settingsIndex.byKey[it] },
             onNavigate = { onNavigate(it.key) },
+            header = {
+                AppearanceSettingsCard(
+                    themeMode = appThemeMode,
+                    onThemeModeChange = onThemeModeChange
+                )
+            },
             footer = {
                 if (configPath != null) {
                     SettingsFooter(
@@ -379,6 +397,7 @@ private fun SettingsCategoryList(
     title: String,
     sections: List<SettingNode.Screen>,
     onNavigate: (SettingNode.Screen) -> Unit,
+    header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
@@ -394,6 +413,7 @@ private fun SettingsCategoryList(
             color = Aps3eColors.OnSurface,
             fontWeight = FontWeight.Bold
         )
+        header?.invoke()
         sections.forEach { screen ->
             NavigationCard(
                 title = screenTitle(screen),
@@ -401,6 +421,84 @@ private fun SettingsCategoryList(
             )
         }
         footer?.invoke()
+    }
+}
+
+@Composable
+private fun AppearanceSettingsCard(
+    themeMode: AppThemeManager.ThemeMode,
+    onThemeModeChange: (AppThemeManager.ThemeMode) -> Unit
+) {
+    var dialogOpen by remember { mutableStateOf(false) }
+    val modes = listOf(
+        AppThemeManager.ThemeMode.SYSTEM,
+        AppThemeManager.ThemeMode.LIGHT,
+        AppThemeManager.ThemeMode.DARK
+    )
+    val modeLabels = listOf(
+        themeModeLabel(AppThemeManager.ThemeMode.SYSTEM),
+        themeModeLabel(AppThemeManager.ThemeMode.LIGHT),
+        themeModeLabel(AppThemeManager.ThemeMode.DARK)
+    )
+
+    if (dialogOpen) {
+        ApsSelectionDialog(
+            title = stringResource(id = R.string.app_theme),
+            options = modeLabels,
+            selectedIndex = modes.indexOf(themeMode).takeIf { it >= 0 },
+            onSelect = { index ->
+                dialogOpen = false
+                val selectedMode = modes.getOrNull(index)
+                if (selectedMode != null) {
+                    onThemeModeChange(selectedMode)
+                }
+            },
+            onDismiss = { dialogOpen = false }
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { dialogOpen = true },
+        colors = CardDefaults.cardColors(containerColor = Aps3eColors.CardBackground),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(id = R.string.app_appearance),
+                    color = Aps3eColors.OnSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = themeModeLabel(themeMode),
+                    color = Aps3eColors.OnSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Aps3eColors.OnSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun themeModeLabel(mode: AppThemeManager.ThemeMode): String {
+    return when (mode) {
+        AppThemeManager.ThemeMode.SYSTEM -> stringResource(id = R.string.app_theme_mode_system)
+        AppThemeManager.ThemeMode.LIGHT -> stringResource(id = R.string.app_theme_mode_light)
+        AppThemeManager.ThemeMode.DARK -> stringResource(id = R.string.app_theme_mode_dark)
     }
 }
 
@@ -634,28 +732,15 @@ private fun ListRow(
     var dialogOpen by remember { mutableStateOf(false) }
 
     if (dialogOpen) {
-        AlertDialog(
-            onDismissRequest = { dialogOpen = false },
-            title = { Text(text = title) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    entries.forEachIndexed { index, label ->
-                        TextButton(
-                            onClick = {
-                                dialogOpen = false
-                                onValueChange(node.key, values.getOrNull(index) ?: currentValue)
-                            }
-                        ) {
-                            Text(text = label)
-                        }
-                    }
-                }
+        ApsSelectionDialog(
+            title = title,
+            options = entries.toList(),
+            selectedIndex = values.indexOf(currentValue).takeIf { it >= 0 },
+            onSelect = { index ->
+                dialogOpen = false
+                onValueChange(node.key, values.getOrNull(index) ?: currentValue)
             },
-            confirmButton = {
-                TextButton(onClick = { dialogOpen = false }) {
-                    Text(text = stringResource(id = android.R.string.cancel))
-                }
-            }
+            onDismiss = { dialogOpen = false }
         )
     }
 

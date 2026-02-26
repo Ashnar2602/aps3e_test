@@ -86,6 +86,7 @@ import org.json.JSONObject;
 import aenu.aps3e.ui.MainScreenCallbacks;
 import aenu.aps3e.ui.MainScreenKt;
 import aenu.aps3e.ui.LastPlayedInfo;
+import aenu.aps3e.ui.GameRef;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function2;
 
@@ -245,6 +246,68 @@ public class MainActivity extends AppCompatActivity {
 		intent.setPackage(getPackageName());
 		intent.putExtra(EmulatorActivity.EXTRA_META_INFO, meta_info);
 		startActivity(intent);
+	}
+
+	private int find_game_position(GameRef gameRef) {
+		if (adapter == null || gameRef == null) return -1;
+
+		String serial = gameRef.getSerial();
+		String isoUri = gameRef.getIsoUri();
+		String ebootPath = gameRef.getEbootPath();
+
+		for (int i = 0; i < adapter.metas.size(); i++) {
+			Emulator.MetaInfo info = adapter.metas.get(i);
+			if (serial != null && !serial.equals(info.serial)) continue;
+			if (isoUri != null && !isoUri.equals(info.iso_uri)) continue;
+			if (ebootPath != null && !ebootPath.equals(info.eboot_path)) continue;
+			return i;
+		}
+
+		if (serial != null) {
+			for (int i = 0; i < adapter.metas.size(); i++) {
+				Emulator.MetaInfo info = adapter.metas.get(i);
+				if (serial.equals(info.serial)) return i;
+			}
+		}
+
+		if (isoUri != null) {
+			for (int i = 0; i < adapter.metas.size(); i++) {
+				Emulator.MetaInfo info = adapter.metas.get(i);
+				if (isoUri.equals(info.iso_uri)) return i;
+			}
+		}
+
+		if (ebootPath != null) {
+			for (int i = 0; i < adapter.metas.size(); i++) {
+				Emulator.MetaInfo info = adapter.metas.get(i);
+				if (ebootPath.equals(info.eboot_path)) return i;
+			}
+		}
+
+		return -1;
+	}
+
+	private void handle_game_click(GameRef gameRef) {
+		int position = find_game_position(gameRef);
+		if (position < 0) {
+			Toast.makeText(this, R.string.msg_failed, Toast.LENGTH_SHORT).show();
+			return;
+		}
+		handle_game_click(position);
+	}
+
+	private boolean handle_game_action(int item_id, GameRef gameRef) {
+		int position = find_game_position(gameRef);
+		if (position < 0) {
+			Toast.makeText(this, R.string.msg_failed, Toast.LENGTH_SHORT).show();
+			return false;
+		}
+		return handle_game_action(item_id, position);
+	}
+
+	private boolean is_disc_game(GameRef gameRef) {
+		int position = find_game_position(gameRef);
+		return position >= 0 && adapter != null && adapter.is_disc_game(position);
 	}
 
 	private void record_last_game(Emulator.MetaInfo meta_info, boolean isDiscGame) {
@@ -553,19 +616,18 @@ public class MainActivity extends AppCompatActivity {
 			}
 
 			@Override
-			public void onGameClick(int position) {
-				handle_game_click(position);
+			public void onGameClick(GameRef gameRef) {
+				handle_game_click(gameRef);
 			}
 
 			@Override
-			public void onGameAction(int actionId, int position) {
-				handle_game_action(actionId, position);
+			public void onGameAction(int actionId, GameRef gameRef) {
+				handle_game_action(actionId, gameRef);
 			}
 
 			@Override
-			public boolean isDiscGame(int position) {
-				if (adapter == null) return false;
-				return adapter.is_disc_game(position);
+			public boolean isDiscGame(GameRef gameRef) {
+				return is_disc_game(gameRef);
 			}
 
 			@Override

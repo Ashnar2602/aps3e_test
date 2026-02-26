@@ -81,6 +81,7 @@ public class Application extends android.app.Application
         super.onCreate();
 
         Application.ctx=this;
+        AppThemeManager.applySavedTheme(this);
         gpu_device_name_vk= ProcessorInfo.gpu_get_physical_device_name_vk();
 
         Emulator.setup_preload_env(this);
